@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"strings"
-
 	"gopkg.in/yaml.v3"
+	"os"
+	"strconv"
+	"strings"
 )
 
 type Pod struct {
@@ -77,11 +77,16 @@ func validatePod(pod Pod, fileName string) []string {
 		if !strings.HasPrefix(container.Image, "registry.bigbrother.io") {
 			errors = append(errors, fmt.Sprintf("%s: container.image must be from domain 'registry.bigbrother.io', but got '%s'", fileName, container.Image))
 		}
+		// Проверка ресурсов на наличие целочисленных значений
+		if cpuLimit, ok := container.Resources.Limits["cpu"]; ok {
+			if _, err := strconv.Atoi(cpuLimit); err != nil {
+				errors = append(errors, fmt.Sprintf("%s: cpu must be int", fileName))
+			}
+		}
 	}
 
 	return errors
 }
-
 func main() {
 	if len(os.Args) != 2 {
 		fmt.Println("Usage: yamlvalid <file>")
