@@ -76,6 +76,12 @@ func validatePod(pod Pod, fileName string) []string {
 	}
 
 	for _, container := range pod.Spec.Containers {
+		if container.LivenessProbe.HTTPGet.Port < 1 || container.LivenessProbe.HTTPGet.Port > 65535 {
+			errors = append(errors, fmt.Sprintf("%s: livenessProbe.port value out of range", fileName))
+		}
+		if container.ReadinessProbe.HTTPGet.Port < 1 || container.ReadinessProbe.HTTPGet.Port > 65535 {
+			errors = append(errors, fmt.Sprintf("%s: readinessProbe.port value out of range", fileName))
+		}
 		if container.Name == "" {
 			errors = append(errors, fmt.Sprintf("%s: container.name is required", fileName))
 		}
