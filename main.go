@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"os"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Pod struct {
-	ApiVersion string     `yaml:"apiVersion"`
+	ApiVersion string     `yaml:"APIVersion"`
 	Kind       string     `yaml:"kind"`
 	Metadata   ObjectMeta `yaml:"metadata"`
 	Spec       PodSpec    `yaml:"spec"`
@@ -40,7 +41,7 @@ type ContainerPort struct {
 }
 
 type Probe struct {
-	HttpGet HTTPGetAction `yaml:"httpGet"`
+	HttpGet HTTPGetAction `yaml:"HTTPGet"`
 }
 
 type HTTPGetAction struct {
