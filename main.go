@@ -70,6 +70,12 @@ func validatePod(pod Pod, fileName string) []string {
 		errors = append(errors, fmt.Sprintf("%s: metadata.name is required", fileName))
 	}
 
+	// Добавьте проверку для поля os
+	validOS := []string{"linux", "windows", "darwin"}
+	if !contains(validOS, pod.Spec.OS) {
+		errors = append(errors, fmt.Sprintf("%s: os has unsupported value '%s'", fileName, pod.Spec.OS))
+	}
+
 	for _, container := range pod.Spec.Containers {
 		if container.Name == "" {
 			errors = append(errors, fmt.Sprintf("%s: container.name is required", fileName))
@@ -86,6 +92,16 @@ func validatePod(pod Pod, fileName string) []string {
 	}
 
 	return errors
+}
+
+// Функция для проверки наличия значения в срезе
+func contains(slice []string, item string) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
+	}
+	return false
 }
 func main() {
 	if len(os.Args) != 2 {
