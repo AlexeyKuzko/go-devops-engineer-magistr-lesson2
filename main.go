@@ -55,7 +55,6 @@ type ResourceRequirements struct {
 	Requests map[string]string `yaml:"requests,omitempty"`
 }
 
-// Функция для проверки обязательных полей
 func validatePod(pod Pod, fileName string) []string {
 	var errors []string
 
@@ -71,7 +70,6 @@ func validatePod(pod Pod, fileName string) []string {
 		errors = append(errors, fmt.Sprintf("%s: metadata.name is required", fileName))
 	}
 
-	// Добавьте проверку для поля os
 	validOS := []string{"linux", "windows", "darwin"}
 	if !contains(validOS, pod.Spec.OS) {
 		errors = append(errors, fmt.Sprintf("%s: os has unsupported value '%s'", fileName, pod.Spec.OS))
@@ -84,7 +82,6 @@ func validatePod(pod Pod, fileName string) []string {
 		if !strings.HasPrefix(container.Image, "registry.bigbrother.io") {
 			errors = append(errors, fmt.Sprintf("%s: container.image must be from domain 'registry.bigbrother.io', but got '%s'", fileName, container.Image))
 		}
-		// Проверка ресурсов на наличие целочисленных значений
 		if cpuLimit, ok := container.Resources.Limits["cpu"]; ok {
 			if _, err := strconv.Atoi(cpuLimit); err != nil {
 				errors = append(errors, fmt.Sprintf("%s: cpu must be int", fileName))
@@ -95,7 +92,6 @@ func validatePod(pod Pod, fileName string) []string {
 	return errors
 }
 
-// Функция для проверки наличия значения в срезе
 func contains(slice []string, item string) bool {
 	for _, v := range slice {
 		if v == item {
@@ -123,7 +119,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Валидируем под
 	errors := validatePod(pod, fileName)
 	if len(errors) > 0 {
 		for _, err := range errors {
@@ -132,7 +127,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Если ошибок нет, завершение программы с кодом 0
 	fmt.Println("YAML validation passed.")
 	os.Exit(0)
 }
