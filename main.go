@@ -9,7 +9,7 @@ import (
 )
 
 type Pod struct {
-	ApiVersion string     `yaml:"APIVersion"`
+	APIVersion string     `yaml:"APIVersion"`
 	Kind       string     `yaml:"kind"`
 	Metadata   ObjectMeta `yaml:"metadata"`
 	Spec       PodSpec    `yaml:"spec"`
@@ -41,7 +41,7 @@ type ContainerPort struct {
 }
 
 type Probe struct {
-	HttpGet HTTPGetAction `yaml:"HTTPGet"`
+	HTTPGet HTTPGetAction `yaml:"HTTPGet"`
 }
 
 type HTTPGetAction struct {
@@ -58,8 +58,8 @@ type ResourceRequirements struct {
 func validatePod(pod Pod, fileName string) []string {
 	var errors []string
 
-	if pod.ApiVersion != "v1" {
-		errors = append(errors, fmt.Sprintf("%s: apiVersion has unsupported value '%s'", fileName, pod.ApiVersion))
+	if pod.APIVersion != "v1" {
+		errors = append(errors, fmt.Sprintf("%s: apiVersion has unsupported value '%s'", fileName, pod.APIVersion))
 	}
 
 	if pod.Kind != "Pod" {
