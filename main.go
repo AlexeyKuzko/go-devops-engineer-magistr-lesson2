@@ -31,8 +31,8 @@ type Container struct {
 	Name           string               `yaml:"name"`
 	Image          string               `yaml:"image"`
 	Ports          []ContainerPort      `yaml:"ports,omitempty"`
-	ReadinessProbe Probe                `yaml:"readinessProbe,omitempty"`
-	LivenessProbe  Probe                `yaml:"livenessProbe,omitempty"`
+	ReadinessProbe *Probe               `yaml:"readinessProbe,omitempty"`
+	LivenessProbe  *Probe               `yaml:"livenessProbe,omitempty"`
 	Resources      ResourceRequirements `yaml:"resources"`
 }
 
@@ -76,10 +76,10 @@ func validatePod(pod Pod, fileName string) []string {
 	}
 
 	for _, container := range pod.Spec.Containers {
-		if container.LivenessProbe.HTTPGet.Port < 1 || container.LivenessProbe.HTTPGet.Port > 65535 {
+		if container.LivenessProbe != nil && (container.LivenessProbe.HTTPGet.Port < 1 || container.LivenessProbe.HTTPGet.Port > 65535) {
 			errors = append(errors, fmt.Sprintf("%s: livenessProbe.port value out of range", fileName))
 		}
-		if container.ReadinessProbe.HTTPGet.Port < 1 || container.ReadinessProbe.HTTPGet.Port > 65535 {
+		if container.ReadinessProbe != nil && (container.ReadinessProbe.HTTPGet.Port < 1 || container.ReadinessProbe.HTTPGet.Port > 65535) {
 			errors = append(errors, fmt.Sprintf("%s: readinessProbe.port value out of range", fileName))
 		}
 		if container.Name == "" {
@@ -106,6 +106,7 @@ func contains(slice []string, item string) bool {
 	}
 	return false
 }
+
 func main() {
 	if len(os.Args) != 2 {
 		fmt.Println("Usage: yamlvalid <file>")
