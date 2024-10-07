@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"os"
 	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Pod struct {
