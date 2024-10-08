@@ -58,8 +58,8 @@ type ResourceRequirements struct {
 }
 
 type ResourceLimits struct {
-	CPU    int    `yaml:"cpu"`
-	Memory string `yaml:"memory"`
+	CPU    interface{} `yaml:"cpu"`
+	Memory string      `yaml:"memory"`
 }
 
 func main() {
@@ -147,7 +147,7 @@ func validateContainer(container Container) error {
 		return fmt.Errorf("containers.image has invalid format '%s'", container.Image)
 	}
 
-	// Проверка портов контейнера
+	// Проверка каждого порта в списке
 	for _, port := range container.Ports {
 		if err := validateContainerPort(port); err != nil {
 			return err
@@ -191,11 +191,24 @@ func validateProbe(probe Probe, probeName string) error {
 }
 
 func validateResources(resources ResourceRequirements) error {
-	// Проверка лимитов CPU и памяти
-	if resources.Limits.CPU <= 0 {
-		return errors.New("resources.limits.cpu is required and must be positive")
+	// Проверка лимитов CPU
+	switch v := resources.Limits.CPU.(type) {
+	case int:
+		if v <= 0 {
+			return errors.New("resources.limits.cpu is required and must be positive")
+		}
+	case string:
+		// Если значение представлено как строка, проверяем, что это валидное целое число
+		cpuRegex := `^\d+$`
+		matched, _ := regexp.MatchString(cpuRegex, v)
+		if !matched {
+			return fmt.Errorf("resources.limits.cpu has invalid format '%s'", v)
+		}
+	default:
+		return errors.New("resources.limits.cpu has invalid type")
 	}
 
+	// Проверка лимитов памяти
 	if resources.Limits.Memory == "" {
 		return errors.New("resources.limits.memory is required")
 	}
