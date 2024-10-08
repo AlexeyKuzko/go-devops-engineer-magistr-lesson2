@@ -16,7 +16,7 @@ var (
 )
 
 type Pod struct {
-	APIVersion string   `yaml:"APIVersion"`
+	APIVersion string   `yaml:"apiVersion"`
 	Kind       string   `yaml:"kind"`
 	Metadata   Metadata `yaml:"metadata"`
 	Spec       Spec     `yaml:"spec"`
@@ -107,7 +107,6 @@ func main() {
 func validatePod(pod *Pod, data []byte) error {
 	var validationErrors []string
 
-	// Validate APIVersion
 	if pod.APIVersion != "v1" {
 		validationErrors = append(validationErrors, fmt.Sprintf("%s: APIVersion must be v1", relPath))
 	}
@@ -127,7 +126,7 @@ func validatePod(pod *Pod, data []byte) error {
 	validOSValues := map[string]bool{"linux": true, "windows": true}
 	if !validOSValues[pod.Spec.OS] {
 		line := getLineNumber(data, "os")
-		validationErrors = append(validationErrors, fmt.Sprintf("%s:%d: os has unsupported value '%s'", relPath, line, pod.Spec.OS))
+		validationErrors = append(validationErrors, fmt.Sprintf("%s:%d os has unsupported value '%s'", relPath, line, pod.Spec.OS))
 	}
 
 	// Validate containers
