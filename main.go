@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -63,8 +62,8 @@ type Resource struct {
 }
 
 type ResourceLimits struct {
-	CPU    string `yaml:"cpu,omitempty"`
-	Memory string `yaml:"memory,omitempty"`
+	CPU    interface{} `yaml:"cpu,omitempty"`
+	Memory string      `yaml:"memory,omitempty"`
 }
 
 func init() {
@@ -98,59 +97,58 @@ func main() {
 	}
 
 	// Validate the Pod struct
-	err = validatePod(&pod)
+	err = validatePod(&pod, data)
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "%v\n", err)
 		os.Exit(1)
 	}
-
 	// If everything is valid
-	fmt.Println("YAML file is valid")
+	// fmt.Println("YAML file is valid")
 }
 
-func validatePod(pod *Pod) error {
+func validatePod(pod *Pod, data []byte) error {
 	var validationErrors []string
 
 	// Validate apiVersion
 	if pod.ApiVersion != "v1" {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s apiVersion must be v1", relPath))
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: apiVersion must be v1", relPath))
 	}
 
 	// Validate kind
 	if pod.Kind != "Pod" {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s kind must be Pod", relPath))
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: kind must be Pod", relPath))
 	}
 
 	// Validate metadata.name
 	if len(pod.Metadata.Name) == 0 {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s name is required", relPath))
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: name is required", relPath))
 	}
 
 	// Validate spec.os
 	validOSValues := map[string]bool{"linux": true, "windows": true}
 	if !validOSValues[pod.Spec.OS] {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s os has unsupported value '%s'", relPath, pod.Spec.OS))
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: os has unsupported value '%s'", relPath, pod.Spec.OS))
 	}
 
 	// Validate containers
 	if len(pod.Spec.Containers) == 0 {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s: containers is required", relPath))
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: spec.containers is required", relPath))
 	}
 
 	for _, container := range pod.Spec.Containers {
 		// Validate container name
 		if strings.TrimSpace(container.Name) == "" {
-			validationErrors = append(validationErrors, fmt.Sprintf("%s name is required", relPath))
+			validationErrors = append(validationErrors, fmt.Sprintf("%s: name is required", relPath))
 		}
 
 		// Validate container image
 		if container.Image == "" {
-			validationErrors = append(validationErrors, fmt.Sprintf("%s container.image is required", relPath))
+			validationErrors = append(validationErrors, fmt.Sprintf("%s: container.image is required", relPath))
 		}
 
 		// Validate container ports
 		if len(container.Ports) == 0 {
-			validationErrors = append(validationErrors, fmt.Sprintf("%s container must define at least one port", relPath))
+			validationErrors = append(validationErrors, fmt.Sprintf("%s: container must define at least one port", relPath))
 		}
 
 		for _, port := range container.Ports {
@@ -168,7 +166,7 @@ func validatePod(pod *Pod) error {
 		}
 
 		// Validate resources
-		if err := validateResources(container.Resources); err != nil {
+		if err := validateResources(container.Resources, []byte(data)); err != nil {
 			validationErrors = append(validationErrors, err.Error())
 		}
 	}
@@ -184,7 +182,7 @@ func validatePod(pod *Pod) error {
 func validatePort(port Port) error {
 	// Validate container port range
 	if port.ContainerPort <= 0 || port.ContainerPort > 65535 {
-		return fmt.Errorf("%s: containerPort must be in the range (0, 65535], found %d", relPath, port.ContainerPort)
+		return fmt.Errorf("%s: containerPort value out of range", relPath)
 	}
 
 	// Validate protocol
@@ -202,14 +200,10 @@ func validateProbe(probe Probe, probeType string) error {
 	return nil
 }
 
-func validateResources(resources Resource) error {
-	if resources.Limits.CPU != "" {
-		if _, err := validateCPU(resources.Limits.CPU); err != nil {
-			return fmt.Errorf("%s: cpu %s", relPath, err.Error())
-		}
-	}
+func validateResources(resources Resource, data []byte) error {
 	if resources.Requests.CPU != "" {
 		if _, err := validateCPU(resources.Requests.CPU); err != nil {
+			//line := getLineNumber(data, "name")
 			return fmt.Errorf("%s: cpu %s", relPath, err.Error())
 		}
 	}
@@ -217,18 +211,19 @@ func validateResources(resources Resource) error {
 }
 
 func validateCPU(cpu interface{}) (int, error) {
-	var i int
 	switch cpu := cpu.(type) {
 	case int:
 		return cpu, nil
-	case string:
-		var err error
-		i, err = strconv.Atoi(cpu)
-		if err != nil {
-			return 0, errors.New("must be int")
-		}
-		return i, nil
 	default:
 		return 0, errors.New("must be int")
 	}
+}
+func getLineNumber(data []byte, field string) int {
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		if strings.Contains(line, field) {
+			return i + 1 // +1 for 1-based index
+		}
+	}
+	return -1 // Return -1 if field is not found
 }
