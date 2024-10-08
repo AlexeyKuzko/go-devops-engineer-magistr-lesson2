@@ -16,7 +16,7 @@ var (
 )
 
 type Pod struct {
-	APIVersion string   `yaml:"apiVersion"`
+	APIVersion string   `yaml:"APIVersion"`
 	Kind       string   `yaml:"kind"`
 	Metadata   Metadata `yaml:"metadata"`
 	Spec       Spec     `yaml:"spec"`
@@ -107,9 +107,9 @@ func main() {
 func validatePod(pod *Pod, data []byte) error {
 	var validationErrors []string
 
-	// Validate apiVersion
-	if pod.ApiVersion != "v1" {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s: apiVersion must be v1", relPath))
+	// Validate APIVersion
+	if pod.APIVersion != "v1" {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: APIVersion must be v1", relPath))
 	}
 
 	// Validate kind
@@ -202,7 +202,7 @@ func validateResources(resources Resource, data []byte) error {
 	if resources.Requests.CPU != "" {
 		if _, err := validateCPU(resources.Requests.CPU); err != nil {
 			line := getLineNumber(data, "cpu")
-			return fmt.Errorf("%s:%d: cpu %s", relPath, err.Error(), line)
+			return fmt.Errorf("%s:%d: cpu %s", relPath, line, err.Error())
 		}
 	}
 	return nil
