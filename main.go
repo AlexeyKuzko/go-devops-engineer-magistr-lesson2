@@ -1,138 +1,234 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
+var (
+	absPath string
+	relPath string
+)
+
 type Pod struct {
-	APIVersion string     `yaml:"APIVersion"`
-	Kind       string     `yaml:"kind"`
-	Metadata   ObjectMeta `yaml:"metadata"`
-	Spec       PodSpec    `yaml:"spec"`
+	ApiVersion string   `yaml:"apiVersion"`
+	Kind       string   `yaml:"kind"`
+	Metadata   Metadata `yaml:"metadata"`
+	Spec       Spec     `yaml:"spec"`
 }
 
-type ObjectMeta struct {
+type Metadata struct {
 	Name      string            `yaml:"name"`
 	Namespace string            `yaml:"namespace,omitempty"`
 	Labels    map[string]string `yaml:"labels,omitempty"`
 }
 
-type PodSpec struct {
+type Spec struct {
 	OS         string      `yaml:"os"`
 	Containers []Container `yaml:"containers"`
 }
 
 type Container struct {
-	Name           string               `yaml:"name"`
-	Image          string               `yaml:"image"`
-	Ports          []ContainerPort      `yaml:"ports,omitempty"`
-	ReadinessProbe Probe                `yaml:"readinessProbe,omitempty"`
-	LivenessProbe  Probe                `yaml:"livenessProbe,omitempty"`
-	Resources      ResourceRequirements `yaml:"resources"`
+	Name           string   `yaml:"name"`
+	Image          string   `yaml:"image"`
+	Ports          []Port   `yaml:"ports,omitempty"`
+	ReadinessProbe Probe    `yaml:"readinessProbe,omitempty"`
+	LivenessProbe  Probe    `yaml:"livenessProbe,omitempty"`
+	Resources      Resource `yaml:"resources,omitempty"`
 }
 
-type ContainerPort struct {
+type Port struct {
 	ContainerPort int    `yaml:"containerPort"`
 	Protocol      string `yaml:"protocol,omitempty"`
 }
 
 type Probe struct {
-	HTTPGet HTTPGetAction `yaml:"HTTPGet"`
+	HTTPGet HTTPGet `yaml:"httpGet,omitempty"`
 }
 
-type HTTPGetAction struct {
+type HTTPGet struct {
 	Path string `yaml:"path"`
 	Port int    `yaml:"port"`
 }
 
-type ResourceRequirements struct {
-	Limits   map[string]string `yaml:"limits"`
-	Requests map[string]string `yaml:"requests,omitempty"`
+type Resource struct {
+	Limits   ResourceLimits `yaml:"limits,omitempty"`
+	Requests ResourceLimits `yaml:"requests,omitempty"`
 }
 
-// Функция для проверки обязательных полей
-func validatePod(pod Pod, fileName string) []string {
-	var errors []string
+type ResourceLimits struct {
+	CPU    string `yaml:"cpu,omitempty"`
+	Memory string `yaml:"memory,omitempty"`
+}
 
-	if pod.APIVersion != "v1" {
-		errors = append(errors, fmt.Sprintf("%s: apiVersion has unsupported value '%s'", fileName, pod.APIVersion))
+func init() {
+	if len(os.Args[1:]) != 1 {
+		panic("path to yaml is not provided")
+	}
+	filePath := os.Args[1]
+	_, err := os.Stat(filePath)
+	if errors.Is(err, os.ErrNotExist) {
+		panic(fmt.Sprintf("%s does not exist", filePath))
+	}
+	absPath, _ = filepath.Abs(filePath)
+	parentDir := filepath.Dir(filePath)
+	relPath, _ = filepath.Rel(parentDir, filePath)
+}
+
+func main() {
+	// Read the YAML file content
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cannot read file: %v\n", err)
+		os.Exit(1)
 	}
 
+	// Unmarshal the YAML content into the Pod struct
+	var pod Pod
+	err = yaml.Unmarshal(data, &pod)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cannot unmarshal file content: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Validate the Pod struct
+	err = validatePod(&pod)
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "%v\n", err)
+		os.Exit(1)
+	}
+
+	// If everything is valid
+	fmt.Println("YAML file is valid")
+}
+
+func validatePod(pod *Pod) error {
+	var validationErrors []string
+
+	// Validate apiVersion
+	if pod.ApiVersion != "v1" {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s apiVersion must be v1", relPath))
+	}
+
+	// Validate kind
 	if pod.Kind != "Pod" {
-		errors = append(errors, fmt.Sprintf("%s: kind must be 'Pod', but got '%s'", fileName, pod.Kind))
+		validationErrors = append(validationErrors, fmt.Sprintf("%s kind must be Pod", relPath))
 	}
 
-	if pod.Metadata.Name == "" {
-		errors = append(errors, fmt.Sprintf("%s: metadata.name is required", fileName))
+	// Validate metadata.name
+	if len(pod.Metadata.Name) == 0 {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s name is required", relPath))
 	}
 
-	// Добавьте проверку для поля os
-	validOS := []string{"linux", "windows", "darwin"}
-	if !contains(validOS, pod.Spec.OS) {
-		errors = append(errors, fmt.Sprintf("%s: os has unsupported value '%s'", fileName, pod.Spec.OS))
+	// Validate spec.os
+	validOSValues := map[string]bool{"linux": true, "windows": true}
+	if !validOSValues[pod.Spec.OS] {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s os has unsupported value '%s'", relPath, pod.Spec.OS))
+	}
+
+	// Validate containers
+	if len(pod.Spec.Containers) == 0 {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: containers is required", relPath))
 	}
 
 	for _, container := range pod.Spec.Containers {
-		if container.Name == "" {
-			errors = append(errors, fmt.Sprintf("%s: container.name is required", fileName))
+		// Validate container name
+		if strings.TrimSpace(container.Name) == "" {
+			validationErrors = append(validationErrors, fmt.Sprintf("%s name is required", relPath))
 		}
-		if !strings.HasPrefix(container.Image, "registry.bigbrother.io") {
-			errors = append(errors, fmt.Sprintf("%s: container.image must be from domain 'registry.bigbrother.io', but got '%s'", fileName, container.Image))
+
+		// Validate container image
+		if container.Image == "" {
+			validationErrors = append(validationErrors, fmt.Sprintf("%s container.image is required", relPath))
 		}
-		// Проверка ресурсов на наличие целочисленных значений
-		if cpuLimit, ok := container.Resources.Limits["cpu"]; ok {
-			if _, err := strconv.Atoi(cpuLimit); err != nil {
-				errors = append(errors, fmt.Sprintf("%s: cpu must be int", fileName))
+
+		// Validate container ports
+		if len(container.Ports) == 0 {
+			validationErrors = append(validationErrors, fmt.Sprintf("%s container must define at least one port", relPath))
+		}
+
+		for _, port := range container.Ports {
+			if err := validatePort(port); err != nil {
+				validationErrors = append(validationErrors, err.Error())
 			}
 		}
-	}
 
-	return errors
-}
+		// Validate readiness and liveness probes
+		if err := validateProbe(container.ReadinessProbe, "readinessProbe"); err != nil {
+			validationErrors = append(validationErrors, err.Error())
+		}
+		if err := validateProbe(container.LivenessProbe, "livenessProbe"); err != nil {
+			validationErrors = append(validationErrors, err.Error())
+		}
 
-// Функция для проверки наличия значения в срезе
-func contains(slice []string, item string) bool {
-	for _, v := range slice {
-		if v == item {
-			return true
+		// Validate resources
+		if err := validateResources(container.Resources); err != nil {
+			validationErrors = append(validationErrors, err.Error())
 		}
 	}
-	return false
+
+	// Return all validation errors if any
+	if len(validationErrors) > 0 {
+		return errors.New(strings.Join(validationErrors, "\n"))
+	}
+
+	return nil
 }
-func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Usage: yamlvalid <file>")
-		os.Exit(1)
+
+func validatePort(port Port) error {
+	// Validate container port range
+	if port.ContainerPort <= 0 || port.ContainerPort > 65535 {
+		return fmt.Errorf("%s: containerPort must be in the range (0, 65535], found %d", relPath, port.ContainerPort)
 	}
 
-	fileName := os.Args[1]
-	content, err := os.ReadFile(fileName)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "cannot read file %s: %v\n", fileName, err)
-		os.Exit(1)
+	// Validate protocol
+	if port.Protocol != "" && port.Protocol != "TCP" && port.Protocol != "UDP" {
+		return fmt.Errorf("%s: unsupported protocol '%s', must be TCP or UDP", relPath, port.Protocol)
 	}
 
-	var pod Pod
-	if err := yaml.Unmarshal(content, &pod); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot unmarshal file %s: %v\n", fileName, err)
-		os.Exit(1)
-	}
+	return nil
+}
 
-	// Валидируем под
-	errors := validatePod(pod, fileName)
-	if len(errors) > 0 {
-		for _, err := range errors {
-			fmt.Fprintln(os.Stderr, err)
+func validateProbe(probe Probe, probeType string) error {
+	if probe.HTTPGet.Port <= 0 || probe.HTTPGet.Port > 65535 {
+		return fmt.Errorf("%s: port value out of range", relPath)
+	}
+	return nil
+}
+
+func validateResources(resources Resource) error {
+	if resources.Limits.CPU != "" {
+		if _, err := validateCPU(resources.Limits.CPU); err != nil {
+			return fmt.Errorf("%s: cpu %s", relPath, err.Error())
 		}
-		os.Exit(1)
 	}
+	if resources.Requests.CPU != "" {
+		if _, err := validateCPU(resources.Requests.CPU); err != nil {
+			return fmt.Errorf("%s: cpu %s", relPath, err.Error())
+		}
+	}
+	return nil
+}
 
-	// Если ошибок нет, завершение программы с кодом 0
-	fmt.Println("YAML validation passed.")
-	os.Exit(0)
+func validateCPU(cpu interface{}) (int, error) {
+	var i int
+	switch cpu := cpu.(type) {
+	case int:
+		return cpu, nil
+	case string:
+		var err error
+		i, err = strconv.Atoi(cpu)
+		if err != nil {
+			return 0, errors.New("must be int")
+		}
+		return i, nil
+	default:
+		return 0, errors.New("must be int")
+	}
 }
