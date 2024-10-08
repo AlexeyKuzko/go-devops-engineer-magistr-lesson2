@@ -4,9 +4,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"os"
 	"regexp"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Структуры для валидации полей YAML-файла
@@ -148,11 +149,8 @@ func validateContainer(container Container) error {
 
 	// Проверка портов контейнера
 	for _, port := range container.Ports {
-		if port.ContainerPort <= 0 || port.ContainerPort >= 65536 {
-			return fmt.Errorf("containerPort value out of range")
-		}
-		if port.Protocol != "" && port.Protocol != "TCP" && port.Protocol != "UDP" {
-			return fmt.Errorf("protocol has unsupported value '%s'", port.Protocol)
+		if err := validateContainerPort(port); err != nil {
+			return err
 		}
 	}
 
@@ -161,6 +159,34 @@ func validateContainer(container Container) error {
 		return err
 	}
 
+	// Проверка readinessProbe
+	if err := validateProbe(container.ReadinessProbe, "readinessProbe"); err != nil {
+		return err
+	}
+
+	// Проверка livenessProbe
+	if err := validateProbe(container.LivenessProbe, "livenessProbe"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateContainerPort(port ContainerPort) error {
+	// Проверка диапазона порта
+	if port.ContainerPort <= 0 || port.ContainerPort >= 65536 {
+		return fmt.Errorf("containerPort value out of range")
+	}
+	if port.Protocol != "" && port.Protocol != "TCP" && port.Protocol != "UDP" {
+		return fmt.Errorf("protocol has unsupported value '%s'", port.Protocol)
+	}
+	return nil
+}
+
+func validateProbe(probe Probe, probeName string) error {
+	if probe.HTTPGet.Port <= 0 || probe.HTTPGet.Port >= 65536 {
+		return fmt.Errorf("%s.httpGet.port value out of range", probeName)
+	}
 	return nil
 }
 
