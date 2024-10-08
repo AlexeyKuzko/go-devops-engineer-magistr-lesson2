@@ -102,8 +102,6 @@ func main() {
 		fmt.Fprintf(os.Stdout, "%v\n", err)
 		os.Exit(1)
 	}
-	// If everything is valid
-	// fmt.Println("YAML file is valid")
 }
 
 func validatePod(pod *Pod, data []byte) error {
@@ -121,13 +119,15 @@ func validatePod(pod *Pod, data []byte) error {
 
 	// Validate metadata.name
 	if len(pod.Metadata.Name) == 0 {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s: name is required", relPath))
+		line := getLineNumber(data, "name")
+		validationErrors = append(validationErrors, fmt.Sprintf("%s:%d: name is required", relPath, line))
 	}
 
 	// Validate spec.os
 	validOSValues := map[string]bool{"linux": true, "windows": true}
 	if !validOSValues[pod.Spec.OS] {
-		validationErrors = append(validationErrors, fmt.Sprintf("%s: os has unsupported value '%s'", relPath, pod.Spec.OS))
+		line := getLineNumber(data, "os")
+		validationErrors = append(validationErrors, fmt.Sprintf("%s:%d: os has unsupported value '%s'", relPath, line, pod.Spec.OS))
 	}
 
 	// Validate containers
@@ -138,7 +138,8 @@ func validatePod(pod *Pod, data []byte) error {
 	for _, container := range pod.Spec.Containers {
 		// Validate container name
 		if strings.TrimSpace(container.Name) == "" {
-			validationErrors = append(validationErrors, fmt.Sprintf("%s: name is required", relPath))
+			line := getLineNumber(data, "name")
+			validationErrors = append(validationErrors, fmt.Sprintf("%s:%d: name is required", relPath, line))
 		}
 
 		// Validate container image
@@ -152,21 +153,21 @@ func validatePod(pod *Pod, data []byte) error {
 		}
 
 		for _, port := range container.Ports {
-			if err := validatePort(port); err != nil {
+			if err := validatePort(port, data); err != nil {
 				validationErrors = append(validationErrors, err.Error())
 			}
 		}
 
 		// Validate readiness and liveness probes
-		if err := validateProbe(container.ReadinessProbe, "readinessProbe"); err != nil {
+		if err := validateProbe(container.ReadinessProbe, "readinessProbe", data); err != nil {
 			validationErrors = append(validationErrors, err.Error())
 		}
-		if err := validateProbe(container.LivenessProbe, "livenessProbe"); err != nil {
+		if err := validateProbe(container.LivenessProbe, "livenessProbe", data); err != nil {
 			validationErrors = append(validationErrors, err.Error())
 		}
 
 		// Validate resources
-		if err := validateResources(container.Resources, []byte(data)); err != nil {
+		if err := validateResources(container.Resources, data); err != nil {
 			validationErrors = append(validationErrors, err.Error())
 		}
 	}
@@ -179,23 +180,20 @@ func validatePod(pod *Pod, data []byte) error {
 	return nil
 }
 
-func validatePort(port Port) error {
+func validatePort(port Port, data []byte) error {
 	// Validate container port range
 	if port.ContainerPort <= 0 || port.ContainerPort > 65535 {
-		return fmt.Errorf("%s: containerPort value out of range", relPath)
-	}
-
-	// Validate protocol
-	if port.Protocol != "" && port.Protocol != "TCP" && port.Protocol != "UDP" {
-		return fmt.Errorf("%s: unsupported protocol '%s', must be TCP or UDP", relPath, port.Protocol)
+		line := getLineNumber(data, "containerPort")
+		return fmt.Errorf("%s:%d: containerPort value out of range", relPath, line)
 	}
 
 	return nil
 }
 
-func validateProbe(probe Probe, probeType string) error {
+func validateProbe(probe Probe, probeType string, data []byte) error {
 	if probe.HTTPGet.Port <= 0 || probe.HTTPGet.Port > 65535 {
-		return fmt.Errorf("%s: port value out of range", relPath)
+		line := getLineNumber(data, "port")
+		return fmt.Errorf("%s:%d port value out of range", relPath, line)
 	}
 	return nil
 }
@@ -203,8 +201,8 @@ func validateProbe(probe Probe, probeType string) error {
 func validateResources(resources Resource, data []byte) error {
 	if resources.Requests.CPU != "" {
 		if _, err := validateCPU(resources.Requests.CPU); err != nil {
-			//line := getLineNumber(data, "name")
-			return fmt.Errorf("%s: cpu %s", relPath, err.Error())
+			line := getLineNumber(data, "cpu")
+			return fmt.Errorf("%s:%d: cpu %s", relPath, err.Error(), line)
 		}
 	}
 	return nil
@@ -218,6 +216,7 @@ func validateCPU(cpu interface{}) (int, error) {
 		return 0, errors.New("must be int")
 	}
 }
+
 func getLineNumber(data []byte, field string) int {
 	lines := strings.Split(string(data), "\n")
 	for i, line := range lines {
@@ -225,5 +224,5 @@ func getLineNumber(data []byte, field string) int {
 			return i + 1 // +1 for 1-based index
 		}
 	}
-	return -1 // Return -1 if field is not found
+	return -1 // Return -1 if field is
 }
