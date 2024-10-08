@@ -173,10 +173,11 @@ func validateContainer(container Container) error {
 }
 
 func validateContainerPort(port ContainerPort) error {
-	// Проверка диапазона порта
-	if port.ContainerPort <= 0 || port.ContainerPort >= 65536 {
-		return fmt.Errorf("containerPort value out of range")
+	// Проверка диапазона порта (1-65535)
+	if port.ContainerPort < 1 || port.ContainerPort > 65535 {
+		return fmt.Errorf("containerPort value out of range: %d", port.ContainerPort)
 	}
+
 	if port.Protocol != "" && port.Protocol != "TCP" && port.Protocol != "UDP" {
 		return fmt.Errorf("protocol has unsupported value '%s'", port.Protocol)
 	}
