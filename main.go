@@ -201,7 +201,7 @@ func validateResources(resources Resource, data []byte) error {
 	if resources.Requests.CPU != "" {
 		if _, err := validateCPU(resources.Requests.CPU); err != nil {
 			line := getLineNumber(data, "cpu")
-			return fmt.Errorf("%s:%d: cpu %s", relPath, line, err.Error())
+			return fmt.Errorf("%s:%d cpu %s", relPath, line, err.Error())
 		}
 	}
 	return nil
@@ -223,5 +223,5 @@ func getLineNumber(data []byte, field string) int {
 			return i + 1 // +1 for 1-based index
 		}
 	}
-	return -1 // Return -1 if field is
+	return -1 // Return -1 if field is not found
 }
